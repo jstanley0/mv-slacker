@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+
+require 'highline/import'
+require 'mvclient'
+require 'slack-rtmapi'
+require 'json'
+
+CONFIG_FILE = File.expand_path("~/.mv-slacker-auth")
+MESSAGE_REGEX = /\A\s*\$(\d+\.?\d*)\s+\:(?:mv|motivosity)\:\s+to\s+(.*)/
+
+class SlackAPI
+  class Error < RuntimeError; end
+
+  class Http
+    include HTTParty
+    base_uri 'https://slack.com'
+  end
+
+  def get(path, url_options)
+    response = Http.get(path, url_options.merge(token: $config[:slack_token]))
+    raise Error.new("#{response.code} #{response.message}") unless response.code == 200
+    json = JSON.parse(response.body)
+    raise Error.new(response["error"]) unless response["ok"]
+    json
+  end
+end
+
+
+def check_config
+  $config = {}
+  config_changed = false
+  config_file = File.new(CONFIG_FILE, File::CREAT|File::RDRW, 0600)
+  raise "Permissions for #{CONFIG_FILE} are too liberal" if config_file.world_readable?
+  data = config_file.read
+  unless data.empty?
+    $config = JSON.parse data
+  end
+
+  # log in to slack
+  loop do
+    if $config[:slack_token]
+      begin
+        result = SlackAPI.get("/api/auth.test")
+        $slack_user_id = result["user_id"]
+        puts "Logged into Slack"
+        break
+      rescue SlackAPI::Error => e
+        puts "Slack login failed: #{e.message}"
+        $config.delete[:slack_token]
+      end
+    end
+    if !$config[:slack_token]
+      config_changed = true
+      $config[:slack_token] = ask("Paste your Slack token: ")
+    end
+  end
+
+  # log in to motivosity
+  loop do
+    if $config[:mv_username] && $config[:mv_password]
+      begin
+        $mvclient.login! $config[:mv_username], $config[:mv_password]
+        puts "Logged in to Motivosity"
+        break
+      rescue Motivosity::UnauthorizedError
+        puts "Motivosity login failed"
+        $config.delete(:mv_username)
+        $config.delete(:mv_password)
+      end
+    end
+    if !$config[:mv_username] || !$config[:mv_password]
+      config_changed = true
+      $config[:mv_username] = ask("Enter your Motivosity username: ")
+      $config[:mv_password] = ask("Enter your Motivosity password: ") { |q| q.echo = false }
+    end
+  end
+
+  # save config
+  if config_changed
+    config_file.rewind
+    config_file.truncate(0)
+    config_file.write $config.to_json
+  end
+end
+
+# ...
+
+$slack_user_id = nil
+
+$mvclient = Motivosity::Client.new
+check_config
+
+
+$slack_client = SlackRTM::Client.new(websocket_url: SlackRTM.get_url(token: $config[:slack_token]))
+$slack_client.on(:message) do |data|
+
+end
+
+puts "Connected to Slack Real Time Messaging API"
+
+$slack_client.main_loop
+
