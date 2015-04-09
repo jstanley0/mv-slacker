@@ -8,12 +8,14 @@ This program listens for you to say certain magic words in Slack. When it hears 
 <mv-slacker> Success! Jane Doe has received your appreciation.
 ```
 ### Message format
-The key part of the message is `$<amount> :motivosity: to <name>`. It can be optionally followed with ` for <company value>` and/or a customized note after `.`
+The key part of the message is `$<amount> :motivosity: to <user>`. It can be optionally followed with ` for <company value>` and/or a customized note after `.`
 
 To be more precise,
 ```
-$<amount> :motivosity: to <name>[ for <company value>][.[ <note>]]
+$<amount> :motivosity: to <user>[ for <company value>][.[ <note>]]
 ```
+### Identifying the user
+mv-slacker will complete your request only if `<user>` matches exactly one Motivosity user. If the `<user>` term matches more than one name, mv-slacker will DM you the list of matching names.
 
 ## Why isn't this an outgoing webhook?
 That would be a lot simpler, wouldn't it? But then you'd have to trust some random service with your Motivosity credentials. If and when Motivosity supports OAuth, I'd be happy to take that approach. That way, a single service would allow any Slack user to register with the bot by providing a token, and it'd be beautiful. But for now, this inelegant solution at least keeps your password on your local machine.
