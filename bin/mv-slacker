@@ -4,9 +4,13 @@ require 'highline/import'
 require 'mvclient'
 require 'slack-rtmapi'
 require 'json'
+require 'date'
+require 'colorize'
 
 CONFIG_FILE = File.expand_path("~/.mv-slacker-auth")
-MESSAGE_REGEX = /\A\s*\$(\d+\.?\d*)\s+\:(?:mv|motivosity)\:\s+to\s+(.*)/
+MESSAGE_REGEX = /\A\s*(?:\$|\+\$?)(\d+\.?\d*)\s*\:(?:mv|motivosity)\:\s*to\s+([^,.]+)(?:,\s*for\s+([^.]+))?(?:\.\s*(.*))?/
+
+$slack_login_time = nil
 
 class SlackAPI
   class Error < RuntimeError; end
@@ -14,10 +18,12 @@ class SlackAPI
   class Http
     include HTTParty
     base_uri 'https://slack.com'
+    debug_output $stderr if ENV['SLACK_DEBUG'].to_i == 1
   end
 
-  def get(path, url_options)
-    response = Http.get(path, url_options.merge(token: $config[:slack_token]))
+  def self.get(path, url_params = {})
+    response = Http.get(path, query: url_params.merge(token: $config[:slack_token]))
+    $slack_login_time ||= DateTime.httpdate(response.headers['Date']).to_time.to_i
     raise Error.new("#{response.code} #{response.message}") unless response.code == 200
     json = JSON.parse(response.body)
     raise Error.new(response["error"]) unless response["ok"]
@@ -29,11 +35,13 @@ end
 def check_config
   $config = {}
   config_changed = false
-  config_file = File.new(CONFIG_FILE, File::CREAT|File::RDRW, 0600)
-  raise "Permissions for #{CONFIG_FILE} are too liberal" if config_file.world_readable?
+  config_file = File.new(CONFIG_FILE, File::CREAT|File::RDWR, 0600)
+  raise "Permissions for #{CONFIG_FILE} are too liberal" if config_file.stat.world_readable?
   data = config_file.read
   unless data.empty?
-    $config = JSON.parse data
+    $config = JSON.parse(data).tap do |h|
+      h.keys.each { |k| h[k.to_sym] = h.delete(k) }
+    end
   end
 
   # log in to slack
@@ -46,7 +54,7 @@ def check_config
         break
       rescue SlackAPI::Error => e
         puts "Slack login failed: #{e.message}"
-        $config.delete[:slack_token]
+        $config.delete(:slack_token)
       end
     end
     if !$config[:slack_token]
@@ -60,6 +68,7 @@ def check_config
     if $config[:mv_username] && $config[:mv_password]
       begin
         $mvclient.login! $config[:mv_username], $config[:mv_password]
+        $company_values = $mvclient.get_values
         puts "Logged in to Motivosity"
         break
       rescue Motivosity::UnauthorizedError
@@ -83,6 +92,84 @@ def check_config
   end
 end
 
+def open_im_channel(user_id)
+  json = SlackAPI.get "/api/im.open", user: user_id
+  json["channel"]["id"]
+end
+
+def send_in_channel(channel, text)
+  SlackAPI.get "/api/chat.postMessage", channel: channel, username: 'Motivosity Slacker', as_user: false, text: text,
+               unfurl_links: false, unfurl_media: false, icon_emoji: ":motivosity:"
+end
+
+# send a direct message to the caller
+def pm(message, text)
+  send_in_channel(open_im_channel($slack_user_id), text)
+end
+
+# reply to the message in channel
+def reply(message, text)
+  send_in_channel(message["channel"], text)
+end
+
+def find_user(message, name)
+  users = []
+  begin
+    users = $mvclient.search_for_user(name)
+  rescue Motivosity::UnauthorizedError
+    # in case session has expired
+    $mvclient.login! $config[:mv_username], $config[:mv_password]
+    users = $mvclient.search_for_user(name)
+  end
+  if users.size > 1
+    # check for an exact match among the search results
+    matching_users = users.select { |user| user['fullName'] == name }
+    if matching_users.size != 1
+      puts "Ambiguous name: " + name.bold
+      pm(message, "Multiple users match `#{name}`! Try one of #{users.map{|user| "`#{user['fullName']}`"}.join(', ')}")
+      return [nil, nil]
+    else
+      users = matching_users
+    end
+  end
+  if users.empty?
+    puts "User not found: " + name.bold
+    pm(message, "User `#{name}` not found")
+    return [nil, nil]
+  end
+  [users[0]['id'], users[0]['fullName']]
+end
+
+def process_message(message, amount, name, company_value, note)
+  # slack likes to replay old messages when you first log in
+  # let's avoid sending redundant thanks by ignoring messages older than our slack login
+  if message['ts'].to_f < $slack_login_time
+    puts "ignoring old message: #{message['text']}".light_black
+    return
+  end
+
+  # find the company value, if one was given
+  value = $company_values.detect { |v| v['name'].downcase == company_value.downcase } if company_value
+  value_id = value['id'] if value
+
+  # look up the user
+  user_id, user_name = find_user(message, name)
+  return unless user_id
+
+  # let's do this
+  print "Sending $" + "#{amount}".on_green + " to " + "#{user_name}".on_red
+  print " for " + "#{value['name']}".on_blue if value
+  puts ": " + note.bold
+  begin
+    response = $mvclient.send_appreciation! user_id, amount: amount, company_value_id: value_id, note: note
+  rescue => e
+    puts "Failed to send appreciation: ".red + e.inspect
+    pm(message, "Failed to send appreciation: `#{e.message}`")
+    return
+  end
+  reply(message, "*#{response['growl']['title']}* #{response['growl']['content']}")
+end
+
 # ...
 
 $slack_user_id = nil
@@ -90,10 +177,11 @@ $slack_user_id = nil
 $mvclient = Motivosity::Client.new
 check_config
 
-
 $slack_client = SlackRTM::Client.new(websocket_url: SlackRTM.get_url(token: $config[:slack_token]))
 $slack_client.on(:message) do |data|
-
+  if data["type"] == "message" && data["user"] == $slack_user_id && data["text"] =~ MESSAGE_REGEX
+    process_message(data, $1, $2, $3, $4)
+  end
 end
 
 puts "Connected to Slack Real Time Messaging API"

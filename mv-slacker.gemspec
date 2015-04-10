@@ -15,7 +15,8 @@ Gem::Specification.new do |s|
   s.bindir      = 'bin'
   s.executables << 'mv-slacker'
   s.required_ruby_version = '>= 1.9.3'
-  s.add_dependency 'mvclient', '0.0.3'
+  s.add_dependency 'mvclient', '0.0.4'
   s.add_dependency 'httparty', '~> 0'
   s.add_dependency 'slack-rtmapi', '1.0.0.rc4'
+  s.add_dependency 'colorize', '~> 0.7'
 end

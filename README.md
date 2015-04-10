@@ -1,19 +1,20 @@
 # mv-slacker
 A thing that lets you send Motivosity dollars via Slack
+
 ## Description
 This program listens for you to say certain magic words in Slack. When it hears them, it performs a Motivosity transaction on your behalf and posts the result to the channel.
+
 ## Example use
 ```
 <user> $1 :motivosity: to Jane Doe, for Customer Experience. Thanks for helping the customer!
 <mv-slacker> Success! Jane Doe has received your appreciation.
 ```
-### Message format
-The key part of the message is `$<amount> :motivosity: to <user>`. It can be optionally followed with `, for <company value>` and/or a customized note after `.`
 
-To be more precise,
+### Message format
 ```
 $<amount> :motivosity: to <user>[, for <company value>][.[ <note>]]
 ```
+
 ### Identifying the user
 mv-slacker will complete your request only if `<user>` matches exactly one Motivosity user. If the `<user>` term matches more than one name, mv-slacker will DM you the list of matching names.
 
