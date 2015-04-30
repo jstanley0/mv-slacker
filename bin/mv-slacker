@@ -59,7 +59,7 @@ def check_config
     end
     if !$config[:slack_token]
       config_changed = true
-      $config[:slack_token] = ask("Paste your Slack token: ")
+      $config[:slack_token] = ask("Paste your Slack token: ").gsub(/^("|')|("|')$/, '')
     end
   end
 
