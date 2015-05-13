@@ -3,8 +3,8 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |s|
   s.name        = 'mv-slacker'
-  s.version     = '0.0.1'
-  s.date        = '2015-04-09'
+  s.version     = '0.0.2'
+  s.date        = '2015-05-13'
   s.summary     = "A thing that lets you send Motivosity dollars via Slack"
   s.description = "A thing that lets you send Motivosity dollars via Slack"
   s.authors     = ["Jeremy Stanley"]

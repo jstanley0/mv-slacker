@@ -167,7 +167,7 @@ def process_message(message, amount, name, company_value, note)
     pm(message, "Failed to send appreciation: `#{e.message}`")
     return
   end
-  reply(message, "*#{response['growl']['title']}* #{response['growl']['content']}")
+  reply(message, "*Success!* #{response['response']['toUserName']} has received your appreciation.")
 end
 
 # ...
