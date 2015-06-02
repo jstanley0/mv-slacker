@@ -123,7 +123,7 @@ def find_user(message, name)
   end
   if users.size > 1
     # check for an exact match among the search results
-    matching_users = users.select { |user| user['fullName'] == name }
+    matching_users = users.select { |user| user['fullName'].downcase == name.downcase }
     if matching_users.size != 1
       puts "Ambiguous name: " + name.bold
       pm(message, "Multiple users match `#{name}`! Try one of #{users.map{|user| "`#{user['fullName']}`"}.join(', ')}")
@@ -167,7 +167,7 @@ def process_message(message, amount, name, company_value, note)
     pm(message, "Failed to send appreciation: `#{e.message}`")
     return
   end
-  reply(message, "*Success!* #{response['response']['toUserName']} has received your appreciation.")
+  reply(message, "*Success!* #{user_name} has received your appreciation.")
 end
 
 # ...
