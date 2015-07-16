@@ -186,5 +186,7 @@ end
 
 puts "Connected to Slack Real Time Messaging API"
 
+puts "Example:  $1 :motivosity: to Jane Doe, for Customer Experience. Thanks for helping the customer!"
+
 $slack_client.main_loop
 
