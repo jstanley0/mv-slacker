@@ -98,8 +98,8 @@ def open_im_channel(user_id)
 end
 
 def send_in_channel(channel, text)
-  SlackAPI.get "/api/chat.postMessage", channel: channel, username: 'Motivosity Slacker', as_user: false, text: text,
-               unfurl_links: false, unfurl_media: false, icon_emoji: ":motivosity:"
+  SlackAPI.get "/api/chat.postMessage", channel: channel, username: "bp's extremely generous gift to you bot", as_user: false, text: text,
+               unfurl_links: false, unfurl_media: false, icon_emoji: ":gift:"
 end
 
 # send a direct message to the caller
