@@ -59,7 +59,7 @@ def check_config
     end
     if !$config[:slack_token]
       config_changed = true
-      $config[:slack_token] = ask("Paste your Slack token: ")
+      $config[:slack_token] = ask("Paste your Slack token: ").gsub(/^("|')|("|')$/, '')
     end
   end
 
@@ -98,8 +98,8 @@ def open_im_channel(user_id)
 end
 
 def send_in_channel(channel, text)
-  SlackAPI.get "/api/chat.postMessage", channel: channel, username: 'Motivosity Slacker', as_user: false, text: text,
-               unfurl_links: false, unfurl_media: false, icon_emoji: ":motivosity:"
+  SlackAPI.get "/api/chat.postMessage", channel: channel, username: "bp's extremely generous gift to you bot", as_user: false, text: text,
+               unfurl_links: false, unfurl_media: false, icon_emoji: ":gift:"
 end
 
 # send a direct message to the caller
@@ -185,6 +185,8 @@ $slack_client.on(:message) do |data|
 end
 
 puts "Connected to Slack Real Time Messaging API"
+
+puts "Example:  $1 :motivosity: to Jane Doe, for Customer Experience. Thanks for helping the customer!"
 
 $slack_client.main_loop
 
